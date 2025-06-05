@@ -12,9 +12,36 @@ const useWallet = () => {
     checkWalletExists()
   }, [])
 
+  // Helper to store in both localStorage and chrome.storage.local
+  const setStorageItem = async (key, value) => {
+    // Store in localStorage for popup
+    localStorage.setItem(key, value)
+    
+    // Store in chrome.storage.local for background script
+    try {
+      await chrome.storage.local.set({ [key]: value })
+    } catch (error) {
+      console.warn('Chrome storage not available:', error)
+    }
+  }
+
+  // Helper to get from both storage systems
+  const getStorageItem = async (key) => {
+    // Try chrome.storage.local first
+    try {
+      const result = await chrome.storage.local.get([key])
+      if (result[key]) return result[key]
+    } catch (error) {
+      console.warn('Chrome storage not available:', error)
+    }
+    
+    // Fallback to localStorage
+    return localStorage.getItem(key)
+  }
+
   const checkWalletExists = async () => {
     try {
-      const walletData = localStorage.getItem(STORAGE_KEYS.ENCRYPTED_WALLET)
+      const walletData = await getStorageItem(STORAGE_KEYS.ENCRYPTED_WALLET)
       setHasWallet(!!walletData)
     } catch (error) {
       console.error('Error checking wallet:', error)
@@ -26,7 +53,7 @@ const useWallet = () => {
 
   const unlockWallet = async (password = DEFAULT_PASSWORD) => {
     try {
-      const encryptedWallet = localStorage.getItem(STORAGE_KEYS.ENCRYPTED_WALLET)
+      const encryptedWallet = await getStorageItem(STORAGE_KEYS.ENCRYPTED_WALLET)
       
       if (!encryptedWallet) {
         throw new Error('No wallet found')
@@ -51,9 +78,14 @@ const useWallet = () => {
       const newWallet = ethers.Wallet.createRandom()
       const encryptedWallet = await newWallet.encrypt(password)
       
-      localStorage.setItem(STORAGE_KEYS.ENCRYPTED_WALLET, encryptedWallet)
-      localStorage.setItem(STORAGE_KEYS.HAS_WALLET, 'true')
-      localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, newWallet.address)
+      // Store in both storage systems
+      await setStorageItem(STORAGE_KEYS.ENCRYPTED_WALLET, encryptedWallet)
+      await setStorageItem(STORAGE_KEYS.HAS_WALLET, 'true')
+      await setStorageItem(STORAGE_KEYS.WALLET_ADDRESS, newWallet.address)
+      
+      // Also store the flag that background script expects
+      await setStorageItem('has_wallet', true)
+      await setStorageItem('wallet_address', newWallet.address)
       
       setWallet(newWallet)
       setHasWallet(true)
@@ -74,9 +106,14 @@ const useWallet = () => {
       const importedWallet = ethers.Wallet.fromMnemonic(mnemonic.trim())
       const encryptedWallet = await importedWallet.encrypt(password)
       
-      localStorage.setItem(STORAGE_KEYS.ENCRYPTED_WALLET, encryptedWallet)
-      localStorage.setItem(STORAGE_KEYS.HAS_WALLET, 'true')
-      localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, importedWallet.address)
+      // Store in both storage systems
+      await setStorageItem(STORAGE_KEYS.ENCRYPTED_WALLET, encryptedWallet)
+      await setStorageItem(STORAGE_KEYS.HAS_WALLET, 'true')
+      await setStorageItem(STORAGE_KEYS.WALLET_ADDRESS, importedWallet.address)
+      
+      // Also store the flag that background script expects
+      await setStorageItem('has_wallet', true)
+      await setStorageItem('wallet_address', importedWallet.address)
       
       setWallet(importedWallet)
       setHasWallet(true)

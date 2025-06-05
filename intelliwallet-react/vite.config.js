@@ -10,12 +10,14 @@ export default defineConfig({
       input: {
         popup: resolve(__dirname, 'index.html'),
         background: resolve(__dirname, 'src/background.js'),
-        'content-script': resolve(__dirname, 'src/content-script.js')
+        'content-script': resolve(__dirname, 'src/content-script.js'),
+        inject: resolve(__dirname, 'src/inject.js')
       },
       output: {
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === 'background') return 'background.js'
           if (chunkInfo.name === 'content-script') return 'content-script.js'
+          if (chunkInfo.name === 'inject') return 'inject.js'
           return 'assets/[name].js'
         },
         chunkFileNames: 'assets/[name].js',
