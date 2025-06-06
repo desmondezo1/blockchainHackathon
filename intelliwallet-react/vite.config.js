@@ -12,13 +12,15 @@ export default defineConfig({
         background: resolve(__dirname, 'src/background.js'),
         'content-script': resolve(__dirname, 'src/content-script.js'),
         inject: resolve(__dirname, 'src/inject.js'),
-        approval: resolve(__dirname, 'approval.html')
+        approval: resolve(__dirname, 'approval.html'),
+        'approval-js': resolve(__dirname, 'approval.js')
       },
       output: {
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === 'background') return 'background.js'
           if (chunkInfo.name === 'content-script') return 'content-script.js'
           if (chunkInfo.name === 'inject') return 'inject.js'
+          if (chunkInfo.name === 'approval-js') return 'approval.js'
           return 'assets/[name].js'
         },
         chunkFileNames: 'assets/[name].js',

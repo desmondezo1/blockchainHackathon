@@ -1,7 +1,6 @@
 // VaultIQ Background Script - Complete dApp Communication Handler with AI Security
 console.log('VaultIQ Background Script: Initializing...');
 
-// Configuration
 const AI_SECURITY_API = 'https://ocansey.app.n8n.cloud/webhook/check';
 
 class VaultIQBackground {
@@ -45,13 +44,11 @@ class VaultIQBackground {
     console.log(`Background received: ${message.type} from ${origin}`, message);
 
     try {
-      // Handle approval responses from popup
       if (message.type === 'CONNECTION_APPROVAL_RESPONSE') {
         await this.handleApprovalResponse(message, sendResponse);
         return;
       }
 
-      // Handle security check requests from popup
       if (message.type === 'REQUEST_SECURITY_CHECK') {
         try {
           const result = await this.performSecurityCheck(message.domain);
@@ -62,98 +59,75 @@ class VaultIQBackground {
         return;
       }
 
-      // Route message based on type
       switch (message.type) {
         case 'eth_requestAccounts':
           await this.handleRequestAccounts(message, sender, sendResponse);
           break;
-
         case 'eth_accounts':
           await this.handleGetAccounts(message, sender, sendResponse);
           break;
-
         case 'eth_chainId':
           await this.handleGetChainId(sendResponse);
           break;
-
         case 'net_version':
           await this.handleNetVersion(sendResponse);
           break;
-
         case 'eth_getBalance':
           await this.handleGetBalance(message, sendResponse);
           break;
-
         case 'eth_blockNumber':
           await this.handleGetBlockNumber(sendResponse);
           break;
-
         case 'eth_getTransactionCount':
           await this.handleGetTransactionCount(message, sendResponse);
           break;
-
         case 'eth_sendTransaction':
           await this.handleSendTransaction(message, sender, sendResponse);
           break;
-
         case 'eth_estimateGas':
           await this.handleEstimateGas(message, sendResponse);
           break;
-
         case 'eth_gasPrice':
           await this.handleGetGasPrice(sendResponse);
           break;
-
         case 'personal_sign':
           await this.handlePersonalSign(message, sender, sendResponse);
           break;
-
         case 'eth_sign':
           await this.handleEthSign(message, sender, sendResponse);
           break;
-
         case 'eth_signTypedData':
         case 'eth_signTypedData_v3':
         case 'eth_signTypedData_v4':
           await this.handleSignTypedData(message, sender, sendResponse);
           break;
-
         case 'wallet_switchEthereumChain':
           await this.handleSwitchChain(message, sendResponse);
           break;
-
         case 'wallet_addEthereumChain':
           await this.handleAddChain(message, sendResponse);
           break;
-
         case 'wallet_getPermissions':
           await this.handleGetPermissions(message, sender, sendResponse);
           break;
-
         case 'wallet_requestPermissions':
           await this.handleRequestPermissions(message, sender, sendResponse);
           break;
-
         case 'CHECK_CONNECTION':
           await this.handleCheckConnection(message, sender, sendResponse);
           break;
-
         case 'DISCONNECT':
           await this.handleDisconnect(message, sender, sendResponse);
           break;
-
         case 'REQUEST_ACCOUNTS':
           await this.handleRequestAccounts(message, sender, sendResponse);
           break;
-
         case 'GET_ACCOUNTS':
           await this.handleGetAccounts(message, sender, sendResponse);
           break;
-
         case 'GET_CHAIN_ID':
           await this.handleGetChainId(sendResponse);
           break;
-
         default:
           console.warn(`Unknown message type: ${message.type}`);
           sendResponse({ 
@@ -170,9 +144,20 @@ class VaultIQBackground {
     }
   }
 
-  // AI Security Check Method
   async performSecurityCheck(domain) {
     console.log(`🔍 Running AI security check for: ${domain}`);
+    
+    // Skip API call for localhost/development
+    if (domain.includes('localhost') || domain.includes('127.0.0.1') || domain.includes('192.168.') || domain.includes('10.0.')) {
+      return {
+        status: 'safe',
+        riskLevel: 'low',
+        message: `✅ Development site (${domain}) - Local development environment detected. Security check skipped for localhost.`,
+        risks: [],
+        confidence: 100,
+        isDevelopment: true
+      };
+    }
     
     const cacheKey = domain.toLowerCase();
     const cached = this.securityCache.get(cacheKey);
@@ -473,7 +458,6 @@ class VaultIQBackground {
   async handleGetBalance(message, sendResponse) {
     const params = message.params || [];
     const address = params[0];
-    const blockTag = params[1] || 'latest';
     
     if (!address) {
       sendResponse({ success: false, error: 'Address parameter required' });
@@ -518,10 +502,6 @@ class VaultIQBackground {
         return;
       }
 
-      const txParams = message.params?.[0] || {};
-      
-      console.log('Transaction approval needed for:', txParams);
-      
       sendResponse({ 
         success: false, 
         error: 'Transaction approval system not implemented yet. Please use VaultIQ extension directly for transactions.' 
@@ -552,7 +532,6 @@ class VaultIQBackground {
 
   async handlePersonalSign(message, sender, sendResponse) {
     const origin = this.getOriginFromSender(sender);
-    console.log(`Personal sign request from ${origin}:`, message.params);
     
     const walletStatus = await this.getWalletStatus();
     
@@ -567,7 +546,6 @@ class VaultIQBackground {
       return;
     }
 
-    console.log('Signature approval needed');
     sendResponse({ 
       success: false, 
       error: 'Message signing approval system not implemented yet' 
@@ -583,7 +561,6 @@ class VaultIQBackground {
 
   async handleSignTypedData(message, sender, sendResponse) {
     const origin = this.getOriginFromSender(sender);
-    console.log(`Typed data sign request from ${origin}:`, message.params);
     
     const walletStatus = await this.getWalletStatus();
     
@@ -607,7 +584,6 @@ class VaultIQBackground {
   async handleSwitchChain(message, sendResponse) {
     try {
       const chainId = message.params?.[0]?.chainId || message.chainId;
-      console.log(`Switch chain request to: ${chainId}`);
       
       const networkMap = {
         '0x1': 'ethereum',
@@ -621,10 +597,7 @@ class VaultIQBackground {
       const network = networkMap[chainId];
       if (network) {
         await chrome.storage.local.set({ selected_network: network });
-        console.log(`✅ Switched to network: ${network}`);
-        
         this.notifyChainChange(chainId);
-        
         sendResponse({ success: true, result: null });
       } else {
         sendResponse({ 
@@ -633,7 +606,6 @@ class VaultIQBackground {
         });
       }
     } catch (error) {
-      console.error('Switch chain error:', error);
       sendResponse({ 
         success: false, 
         error: `Network switch failed: ${error.message}` 
@@ -642,9 +614,6 @@ class VaultIQBackground {
   }
 
   async handleAddChain(message, sendResponse) {
-    const chainParams = message.params?.[0] || message.chainParams;
-    console.log('Add chain request:', chainParams);
-    
     sendResponse({ 
       success: false, 
       error: 'Adding custom chains not implemented yet. VaultIQ supports major networks and their testnets.' 
@@ -719,7 +688,6 @@ class VaultIQBackground {
     try {
       await this.removeConnectionPermission(origin);
       this.notifyConnectionChange(origin, null, false);
-      
       sendResponse({ success: true, result: true });
     } catch (error) {
       sendResponse({ success: false, error: error.message });
@@ -810,7 +778,7 @@ class VaultIQBackground {
         [`connection_${origin}`]: connectionData
       });
       
-      console.log(`✅ Stored connection permission for: ${origin}`, connectionData);
+      console.log(`✅ Stored connection permission for: ${origin}`);
     } catch (error) {
       console.error('Failed to store connection permission:', error);
     }
@@ -845,7 +813,6 @@ class VaultIQBackground {
       };
 
       const { securityLogs = [] } = await chrome.storage.local.get(['securityLogs']);
-      
       securityLogs.push(logEntry);
       
       if (securityLogs.length > 100) {
@@ -853,8 +820,6 @@ class VaultIQBackground {
       }
       
       await chrome.storage.local.set({ securityLogs });
-      
-      console.log(`📝 Logged security decision for ${origin}`);
     } catch (error) {
       console.error('Failed to log security decision:', error);
     }
