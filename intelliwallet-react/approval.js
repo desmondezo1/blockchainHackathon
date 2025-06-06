@@ -29,7 +29,6 @@ async function updateUI() {
         const siteUrl = connectionData.origin || 'Unknown site';
         document.getElementById('siteUrl').textContent = siteUrl;
 
-        // Get site favicon
         try {
             const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(siteUrl)}&sz=64`;
             document.getElementById('siteIcon').innerHTML = `<img src="${favicon}" width="32" height="32" style="border-radius: 6px;" onerror="this.style.display='none'; this.parentNode.innerHTML='🌐';">`;
@@ -37,7 +36,6 @@ async function updateUI() {
             document.getElementById('siteIcon').textContent = '🌐';
         }
 
-        // Get wallet info
         const storage = await chrome.storage.local.get(['wallet_address', 'selected_network']);
         const address = storage.wallet_address || 'Not available';
         const network = storage.selected_network || 'ethereum';
@@ -64,7 +62,6 @@ async function performSecurityCheck() {
     const domain = connectionData.origin;
     
     try {
-        // First try to get pre-computed security result from background script
         const storage = await chrome.storage.local.get([`security_${domain}`]);
         const preComputedResult = storage[`security_${domain}`];
         
@@ -75,7 +72,6 @@ async function performSecurityCheck() {
             return;
         }
 
-        // If no pre-computed result, request fresh analysis from background
         console.log('Requesting fresh security analysis...');
         
         const response = await chrome.runtime.sendMessage({
@@ -92,7 +88,6 @@ async function performSecurityCheck() {
         
     } catch (error) {
         console.error('Security check failed:', error);
-        // Fallback to safe default
         securityResult = {
             status: 'unknown',
             riskLevel: 'medium',
@@ -110,7 +105,6 @@ function updateSecurityStatus(result) {
     const indicatorsEl = document.getElementById('riskIndicators');
     const approveBtn = document.getElementById('approveBtn');
 
-    // Update status based on AI response
     statusEl.className = 'security-status';
     
     if (result.status === 'safe') {
@@ -122,6 +116,8 @@ function updateSecurityStatus(result) {
         approveBtn.textContent = 'Connect';
         approveBtn.disabled = false;
         approveBtn.classList.remove('danger');
+        approveBtn.style.opacity = '1';
+        approveBtn.style.cursor = 'pointer';
     } else if (result.status === 'warning') {
         statusEl.classList.add('status-warning');
         statusEl.innerHTML = `
@@ -131,15 +127,19 @@ function updateSecurityStatus(result) {
         approveBtn.textContent = 'Connect Anyway';
         approveBtn.disabled = false;
         approveBtn.classList.remove('danger');
+        approveBtn.style.opacity = '1';
+        approveBtn.style.cursor = 'pointer';
     } else if (result.status === 'danger') {
         statusEl.classList.add('status-danger');
         statusEl.innerHTML = `
             <span class="status-icon">🚨</span>
-            <span class="status-text">High risk detected</span>
+            <span class="status-text">Connection blocked - Scam detected</span>
         `;
-        approveBtn.textContent = 'Connect (Not Recommended)';
-        approveBtn.disabled = false;
+        approveBtn.textContent = 'Connection Blocked';
+        approveBtn.disabled = true;
         approveBtn.classList.add('danger');
+        approveBtn.style.opacity = '0.3';
+        approveBtn.style.cursor = 'not-allowed';
     } else {
         statusEl.classList.add('status-warning');
         statusEl.innerHTML = `
@@ -148,13 +148,13 @@ function updateSecurityStatus(result) {
         `;
         approveBtn.textContent = 'Connect (Unverified)';
         approveBtn.disabled = false;
+        approveBtn.style.opacity = '1';
+        approveBtn.style.cursor = 'pointer';
     }
 
-    // Show AI analysis
     analysisEl.style.display = 'block';
     analysisEl.textContent = result.message || 'No additional analysis available.';
 
-    // Show risk indicators
     if (result.risks && result.risks.length > 0) {
         indicatorsEl.style.display = 'flex';
         indicatorsEl.innerHTML = '';
@@ -168,8 +168,12 @@ function updateSecurityStatus(result) {
     }
 }
 
-// Handle approval
 document.getElementById('approveBtn').addEventListener('click', async () => {
+    // Block connection if dangerous
+    if (securityResult && securityResult.status === 'danger') {
+        return; // Do nothing, connection blocked
+    }
+    
     try {
         await chrome.runtime.sendMessage({
             type: 'CONNECTION_APPROVAL_RESPONSE',
@@ -184,7 +188,6 @@ document.getElementById('approveBtn').addEventListener('click', async () => {
     }
 });
 
-// Handle rejection
 document.getElementById('rejectBtn').addEventListener('click', async () => {
     try {
         await chrome.runtime.sendMessage({
@@ -200,12 +203,10 @@ document.getElementById('rejectBtn').addEventListener('click', async () => {
     }
 });
 
-// Close on escape
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         document.getElementById('rejectBtn').click();
     }
 });
 
-// Initialize
 loadConnectionData();
