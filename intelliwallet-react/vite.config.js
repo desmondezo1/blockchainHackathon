@@ -11,7 +11,8 @@ export default defineConfig({
         popup: resolve(__dirname, 'index.html'),
         background: resolve(__dirname, 'src/background.js'),
         'content-script': resolve(__dirname, 'src/content-script.js'),
-        inject: resolve(__dirname, 'src/inject.js')
+        inject: resolve(__dirname, 'src/inject.js'),
+        approval: resolve(__dirname, 'approval.html')
       },
       output: {
         entryFileNames: (chunkInfo) => {

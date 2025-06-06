@@ -1,23 +1,26 @@
-// VaultIQ Background Script - Complete dApp Communication Handler
+// VaultIQ Background Script - Complete dApp Communication Handler with AI Security
 console.log('VaultIQ Background Script: Initializing...');
+
+// Configuration
+const AI_SECURITY_API = 'https://ocansey.app.n8n.cloud/webhook/check';
 
 class VaultIQBackground {
   constructor() {
     this.pendingRequests = new Map();
     this.connectedSites = new Map();
+    this.approvalCallbacks = new Map();
+    this.securityCache = new Map();
     this.setupMessageHandlers();
     this.setupExtensionListeners();
     console.log('✅ VaultIQ Background initialized');
   }
 
   setupMessageHandlers() {
-    // Listen for messages from content scripts
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       this.handleMessage(message, sender, sendResponse);
-      return true; // Keep message channel open for async responses
+      return true;
     });
 
-    // Listen for extension popup connections
     chrome.runtime.onConnect.addListener((port) => {
       if (port.name === 'vaultiq-popup') {
         this.setupPopupConnection(port);
@@ -26,14 +29,12 @@ class VaultIQBackground {
   }
 
   setupExtensionListeners() {
-    // Monitor tab updates for connection management
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       if (changeInfo.status === 'complete' && tab.url) {
         this.handleTabUpdate(tabId, tab);
       }
     });
 
-    // Handle tab removal for cleanup
     chrome.tabs.onRemoved.addListener((tabId) => {
       this.cleanupTabConnections(tabId);
     });
@@ -44,9 +45,25 @@ class VaultIQBackground {
     console.log(`Background received: ${message.type} from ${origin}`, message);
 
     try {
+      // Handle approval responses from popup
+      if (message.type === 'CONNECTION_APPROVAL_RESPONSE') {
+        await this.handleApprovalResponse(message, sendResponse);
+        return;
+      }
+
+      // Handle security check requests from popup
+      if (message.type === 'REQUEST_SECURITY_CHECK') {
+        try {
+          const result = await this.performSecurityCheck(message.domain);
+          sendResponse({ success: true, result });
+        } catch (error) {
+          sendResponse({ success: false, error: error.message });
+        }
+        return;
+      }
+
       // Route message based on type
       switch (message.type) {
-        // Account Management
         case 'eth_requestAccounts':
           await this.handleRequestAccounts(message, sender, sendResponse);
           break;
@@ -55,7 +72,6 @@ class VaultIQBackground {
           await this.handleGetAccounts(message, sender, sendResponse);
           break;
 
-        // Network Information
         case 'eth_chainId':
           await this.handleGetChainId(sendResponse);
           break;
@@ -64,7 +80,6 @@ class VaultIQBackground {
           await this.handleNetVersion(sendResponse);
           break;
 
-        // Balance and Blockchain Data
         case 'eth_getBalance':
           await this.handleGetBalance(message, sendResponse);
           break;
@@ -77,7 +92,6 @@ class VaultIQBackground {
           await this.handleGetTransactionCount(message, sendResponse);
           break;
 
-        // Transaction Methods
         case 'eth_sendTransaction':
           await this.handleSendTransaction(message, sender, sendResponse);
           break;
@@ -90,7 +104,6 @@ class VaultIQBackground {
           await this.handleGetGasPrice(sendResponse);
           break;
 
-        // Signing Methods
         case 'personal_sign':
           await this.handlePersonalSign(message, sender, sendResponse);
           break;
@@ -105,7 +118,6 @@ class VaultIQBackground {
           await this.handleSignTypedData(message, sender, sendResponse);
           break;
 
-        // Network Management
         case 'wallet_switchEthereumChain':
           await this.handleSwitchChain(message, sendResponse);
           break;
@@ -122,7 +134,6 @@ class VaultIQBackground {
           await this.handleRequestPermissions(message, sender, sendResponse);
           break;
 
-        // Connection Management
         case 'CHECK_CONNECTION':
           await this.handleCheckConnection(message, sender, sendResponse);
           break;
@@ -131,7 +142,6 @@ class VaultIQBackground {
           await this.handleDisconnect(message, sender, sendResponse);
           break;
 
-        // Legacy message types for backward compatibility
         case 'REQUEST_ACCOUNTS':
           await this.handleRequestAccounts(message, sender, sendResponse);
           break;
@@ -160,13 +170,143 @@ class VaultIQBackground {
     }
   }
 
-  // Account Management Methods
+  // AI Security Check Method
+  async performSecurityCheck(domain) {
+    console.log(`🔍 Running AI security check for: ${domain}`);
+    
+    const cacheKey = domain.toLowerCase();
+    const cached = this.securityCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < 3600000) {
+      console.log(`📄 Using cached security result for ${domain}`);
+      return cached.result;
+    }
+
+    try {
+      const response = await fetch(`${AI_SECURITY_API}?url=${encodeURIComponent(domain)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const normalizedResult = this.normalizeSecurityResult(result, domain);
+      
+      this.securityCache.set(cacheKey, {
+        result: normalizedResult,
+        timestamp: Date.now()
+      });
+
+      console.log(`✅ Security check completed for ${domain}:`, normalizedResult);
+      return normalizedResult;
+
+    } catch (error) {
+      console.error(`❌ Security check failed for ${domain}:`, error);
+      
+      return {
+        status: 'unknown',
+        riskLevel: 'medium',
+        message: `Unable to verify site security due to API error: ${error.message}. Please verify this site manually before connecting.`,
+        risks: ['verification_failed'],
+        confidence: 0,
+        apiError: true
+      };
+    }
+  }
+
+  normalizeSecurityResult(apiResult, domain) {
+    let status, riskLevel, message, risks = [];
+
+    if (apiResult.scam === true) {
+      status = 'danger';
+      riskLevel = 'high';
+      
+      if (apiResult.original_domain && apiResult.original_domain !== domain) {
+        message = `🚨 SCAM ALERT: This site (${domain}) appears to be impersonating ${apiResult.original_domain}. This is likely a phishing attempt designed to steal your cryptocurrency. DO NOT CONNECT your wallet.`;
+        risks = ['phishing', 'impersonation', 'fund_theft'];
+      } else {
+        message = `🚨 SCAM ALERT: This site (${domain}) has been identified as a fraudulent website. Connecting your wallet could result in stolen funds or compromised accounts.`;
+        risks = ['scam', 'fraud', 'fund_theft'];
+      }
+    } else if (apiResult.scam === false) {
+      status = 'safe';
+      riskLevel = 'low';
+      
+      if (apiResult.original_domain && apiResult.original_domain === domain) {
+        message = `✅ This appears to be the legitimate ${domain} website. Our AI analysis found no indicators of fraudulent activity.`;
+      } else {
+        message = `✅ No scam indicators detected for ${domain}. The site appears to be legitimate based on our security analysis.`;
+      }
+      risks = [];
+    } else {
+      status = 'unknown';
+      riskLevel = 'medium';
+      message = `❓ Unable to determine if ${domain} is legitimate. The security analysis returned inconclusive results. Please verify this site manually before connecting.`;
+      risks = ['unverified'];
+    }
+
+    let additionalInfo = '';
+    if (apiResult.original_domain && apiResult.original_domain !== domain) {
+      additionalInfo = ` The legitimate site appears to be: ${apiResult.original_domain}`;
+    }
+
+    return {
+      status,
+      riskLevel,
+      message: message + additionalInfo,
+      risks,
+      confidence: apiResult.scam !== undefined ? 95 : 50,
+      originalDomain: apiResult.original_domain,
+      searchQuery: apiResult.search_query,
+      rawApiResult: apiResult,
+      checkedAt: new Date().toISOString()
+    };
+  }
+
+  async handleApprovalResponse(message, sendResponse) {
+    const { approved, origin, tabId, securityResult } = message;
+    const requestKey = `${origin}_${tabId}`;
+    
+    console.log(`Security Decision for ${origin}:`, {
+      approved,
+      securityStatus: securityResult?.status,
+      riskLevel: securityResult?.riskLevel,
+      userOverrodeWarning: approved && securityResult?.status === 'danger'
+    });
+
+    if (securityResult) {
+      await this.logSecurityDecision(origin, approved, securityResult);
+    }
+    
+    const callback = this.approvalCallbacks.get(requestKey);
+    
+    if (callback) {
+      this.approvalCallbacks.delete(requestKey);
+      
+      if (approved) {
+        const accounts = await this.getWalletAccounts();
+        await this.storeConnectionPermission(origin, accounts[0], securityResult);
+        this.updateConnectionActivity(origin);
+        this.notifyConnectionChange(origin, accounts[0], true);
+        
+        callback.resolve(true);
+      } else {
+        callback.resolve(false);
+      }
+    }
+    
+    sendResponse({ success: true });
+  }
+
   async handleRequestAccounts(message, sender, sendResponse) {
     const origin = message.origin || this.getOriginFromSender(sender);
     console.log(`Account request from: ${origin}`);
     
     try {
-      // Check wallet status
       const walletStatus = await this.getWalletStatus();
       
       if (!walletStatus.hasWallet) {
@@ -178,7 +318,6 @@ class VaultIQBackground {
       }
 
       if (!walletStatus.isUnlocked) {
-        // Try to open popup for unlock
         try {
           await chrome.action.openPopup();
         } catch (popupError) {
@@ -192,7 +331,6 @@ class VaultIQBackground {
         return;
       }
 
-      // Check existing connection
       const existingConnection = await this.checkConnectionPermission(origin);
       
       if (existingConnection) {
@@ -202,17 +340,17 @@ class VaultIQBackground {
         return;
       }
 
-      // Request new connection approval
-      const approved = await this.requestConnectionApproval(origin, sender);
+      console.log(`🔍 Pre-running security check for ${origin}...`);
+      const securityResult = await this.performSecurityCheck(origin);
+      
+      await chrome.storage.local.set({
+        [`security_${origin}`]: securityResult
+      });
+
+      const approved = await this.requestConnectionApproval(origin, sender, securityResult);
       
       if (approved) {
         const accounts = await this.getWalletAccounts();
-        await this.storeConnectionPermission(origin, accounts[0]);
-        this.updateConnectionActivity(origin);
-        
-        // Notify about new connection
-        this.notifyConnectionChange(origin, accounts[0], true);
-        
         sendResponse({ success: true, result: accounts, accounts });
       } else {
         sendResponse({ 
@@ -230,6 +368,62 @@ class VaultIQBackground {
     }
   }
 
+  async requestConnectionApproval(origin, sender, securityResult = null) {
+    const tabId = sender.tab?.id;
+    
+    console.log(`🔔 Requesting connection approval for: ${origin}`, {
+      securityStatus: securityResult?.status,
+      riskLevel: securityResult?.riskLevel
+    });
+    
+    return new Promise(async (resolve, reject) => {
+      try {
+        const requestKey = `${origin}_${tabId}`;
+        this.approvalCallbacks.set(requestKey, { resolve, reject });
+        
+        await chrome.storage.local.set({
+          pendingConnection: {
+            origin,
+            tabId,
+            timestamp: Date.now(),
+            securityResult
+          }
+        });
+
+        const popup = await chrome.windows.create({
+          url: chrome.runtime.getURL(`approval.html?origin=${encodeURIComponent(origin)}&tabId=${tabId}`),
+          type: 'popup',
+          width: 420,
+          height: 600,
+          focused: true
+        });
+
+        console.log(`✅ AI Security approval popup created: ${popup.id}`);
+
+        setTimeout(() => {
+          if (this.approvalCallbacks.has(requestKey)) {
+            this.approvalCallbacks.delete(requestKey);
+            console.log(`⏰ Approval timeout for ${origin}`);
+            resolve(false);
+            chrome.windows.remove(popup.id).catch(() => {});
+          }
+        }, 60000);
+
+        chrome.windows.onRemoved.addListener((windowId) => {
+          if (windowId === popup.id && this.approvalCallbacks.has(requestKey)) {
+            this.approvalCallbacks.delete(requestKey);
+            console.log(`🪟 AI Security popup closed without response for ${origin}`);
+            resolve(false);
+          }
+        });
+
+      } catch (error) {
+        console.error('Error creating AI security popup:', error);
+        resolve(false);
+      }
+    });
+  }
+
   async handleGetAccounts(message, sender, sendResponse) {
     try {
       const origin = message.origin || this.getOriginFromSender(sender);
@@ -240,7 +434,6 @@ class VaultIQBackground {
         return;
       }
 
-      // Check if site is connected
       const isConnected = await this.checkConnectionPermission(origin);
       
       if (isConnected) {
@@ -257,7 +450,6 @@ class VaultIQBackground {
     }
   }
 
-  // Network Information Methods
   async handleGetChainId(sendResponse) {
     try {
       const chainId = await this.getCurrentChainId();
@@ -278,7 +470,6 @@ class VaultIQBackground {
     }
   }
 
-  // Blockchain Data Methods
   async handleGetBalance(message, sendResponse) {
     const params = message.params || [];
     const address = params[0];
@@ -289,7 +480,6 @@ class VaultIQBackground {
       return;
     }
 
-    // For now, return error - implement with your blockchain provider
     sendResponse({ 
       success: false, 
       error: 'Balance fetching via dApp not implemented. Use VaultIQ extension directly.' 
@@ -310,7 +500,6 @@ class VaultIQBackground {
     });
   }
 
-  // Transaction Methods
   async handleSendTransaction(message, sender, sendResponse) {
     const origin = this.getOriginFromSender(sender);
     console.log(`Transaction request from ${origin}:`, message.params);
@@ -323,7 +512,6 @@ class VaultIQBackground {
         return;
       }
 
-      // Check connection permission
       const isConnected = await this.checkConnectionPermission(origin);
       if (!isConnected) {
         sendResponse({ success: false, error: 'Site not connected to wallet' });
@@ -332,8 +520,6 @@ class VaultIQBackground {
 
       const txParams = message.params?.[0] || {};
       
-      // For now, show approval needed message
-      // In production, implement transaction approval popup
       console.log('Transaction approval needed for:', txParams);
       
       sendResponse({ 
@@ -364,7 +550,6 @@ class VaultIQBackground {
     });
   }
 
-  // Signing Methods
   async handlePersonalSign(message, sender, sendResponse) {
     const origin = this.getOriginFromSender(sender);
     console.log(`Personal sign request from ${origin}:`, message.params);
@@ -376,14 +561,12 @@ class VaultIQBackground {
       return;
     }
 
-    // Check connection permission
     const isConnected = await this.checkConnectionPermission(origin);
     if (!isConnected) {
       sendResponse({ success: false, error: 'Site not connected to wallet' });
       return;
     }
 
-    // For now, reject signing requests
     console.log('Signature approval needed');
     sendResponse({ 
       success: false, 
@@ -392,7 +575,6 @@ class VaultIQBackground {
   }
 
   async handleEthSign(message, sender, sendResponse) {
-    // eth_sign is dangerous and deprecated
     sendResponse({ 
       success: false, 
       error: 'eth_sign is deprecated due to security risks. Use personal_sign instead.' 
@@ -410,7 +592,6 @@ class VaultIQBackground {
       return;
     }
 
-    // Check connection permission
     const isConnected = await this.checkConnectionPermission(origin);
     if (!isConnected) {
       sendResponse({ success: false, error: 'Site not connected to wallet' });
@@ -423,7 +604,6 @@ class VaultIQBackground {
     });
   }
 
-  // Network Management Methods
   async handleSwitchChain(message, sendResponse) {
     try {
       const chainId = message.params?.[0]?.chainId || message.chainId;
@@ -443,7 +623,6 @@ class VaultIQBackground {
         await chrome.storage.local.set({ selected_network: network });
         console.log(`✅ Switched to network: ${network}`);
         
-        // Notify all connected sites about chain change
         this.notifyChainChange(chainId);
         
         sendResponse({ success: true, result: null });
@@ -472,7 +651,6 @@ class VaultIQBackground {
     });
   }
 
-  // Permission Methods
   async handleGetPermissions(message, sender, sendResponse) {
     const origin = this.getOriginFromSender(sender);
     const isConnected = await this.checkConnectionPermission(origin);
@@ -490,7 +668,6 @@ class VaultIQBackground {
   }
 
   async handleRequestPermissions(message, sender, sendResponse) {
-    // Redirect to eth_requestAccounts for account permissions
     const requestedPerms = message.params?.[0] || {};
     
     if (requestedPerms.eth_accounts) {
@@ -503,7 +680,6 @@ class VaultIQBackground {
     }
   }
 
-  // Connection Management
   async handleCheckConnection(message, sender, sendResponse) {
     try {
       const origin = message.origin || this.getOriginFromSender(sender);
@@ -550,7 +726,6 @@ class VaultIQBackground {
     }
   }
 
-  // Helper Methods
   getOriginFromSender(sender) {
     if (sender.tab && sender.tab.url) {
       try {
@@ -567,7 +742,7 @@ class VaultIQBackground {
       const result = await chrome.storage.local.get(['has_wallet', 'encrypted_wallet']);
       return {
         hasWallet: !!(result.has_wallet || result.encrypted_wallet),
-        isUnlocked: true // For now, assume unlocked if wallet exists
+        isUnlocked: true
       };
     } catch {
       return { hasWallet: false, isUnlocked: false };
@@ -610,7 +785,6 @@ class VaultIQBackground {
       
       if (!connection) return false;
       
-      // Check if connection is still valid (not older than 30 days)
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
       return connection.timestamp > thirtyDaysAgo;
     } catch {
@@ -618,16 +792,25 @@ class VaultIQBackground {
     }
   }
 
-  async storeConnectionPermission(origin, account) {
+  async storeConnectionPermission(origin, account, securityResult = null) {
     try {
+      const connectionData = {
+        account,
+        timestamp: Date.now(),
+        origin,
+        securityCheck: securityResult ? {
+          status: securityResult.status,
+          riskLevel: securityResult.riskLevel,
+          checkedAt: securityResult.checkedAt,
+          confidence: securityResult.confidence
+        } : null
+      };
+
       await chrome.storage.local.set({
-        [`connection_${origin}`]: {
-          account,
-          timestamp: Date.now(),
-          origin
-        }
+        [`connection_${origin}`]: connectionData
       });
-      console.log(`✅ Stored connection permission for: ${origin}`);
+      
+      console.log(`✅ Stored connection permission for: ${origin}`, connectionData);
     } catch (error) {
       console.error('Failed to store connection permission:', error);
     }
@@ -649,31 +832,43 @@ class VaultIQBackground {
     });
   }
 
-  async requestConnectionApproval(origin, sender) {
-    // For now, auto-approve for testing
-    // In production, implement approval popup
-    console.log(`🔔 Auto-approving connection request from: ${origin}`);
-    
-    // You would implement approval popup here:
-    // const approved = await this.showConnectionApprovalPopup(origin, sender);
-    
-    return true; // Auto-approve for testing
+  async logSecurityDecision(origin, approved, securityResult) {
+    try {
+      const logEntry = {
+        timestamp: Date.now(),
+        origin,
+        approved,
+        securityStatus: securityResult.status,
+        riskLevel: securityResult.riskLevel,
+        confidence: securityResult.confidence,
+        userOverrodeWarning: approved && ['warning', 'danger'].includes(securityResult.status)
+      };
+
+      const { securityLogs = [] } = await chrome.storage.local.get(['securityLogs']);
+      
+      securityLogs.push(logEntry);
+      
+      if (securityLogs.length > 100) {
+        securityLogs.splice(0, securityLogs.length - 100);
+      }
+      
+      await chrome.storage.local.set({ securityLogs });
+      
+      console.log(`📝 Logged security decision for ${origin}`);
+    } catch (error) {
+      console.error('Failed to log security decision:', error);
+    }
   }
 
-  // Event notification methods
   notifyConnectionChange(origin, account, connected) {
     console.log(`🔔 Connection ${connected ? 'established' : 'removed'} for ${origin}`);
-    // Implement event broadcasting to content scripts if needed
   }
 
   notifyChainChange(chainId) {
     console.log(`🔔 Chain changed to: ${chainId}`);
-    // Implement event broadcasting to content scripts if needed
   }
 
-  // Tab management
   handleTabUpdate(tabId, tab) {
-    // Handle tab updates for connection management
     if (tab.url) {
       const origin = new URL(tab.url).origin;
       this.updateConnectionActivity(origin);
@@ -681,7 +876,6 @@ class VaultIQBackground {
   }
 
   cleanupTabConnections(tabId) {
-    // Cleanup when tabs are closed
     console.log(`🧹 Cleaning up connections for tab: ${tabId}`);
   }
 
@@ -690,7 +884,6 @@ class VaultIQBackground {
     
     port.onMessage.addListener((message) => {
       console.log('Popup message:', message);
-      // Handle popup messages
     });
     
     port.onDisconnect.addListener(() => {
@@ -699,10 +892,8 @@ class VaultIQBackground {
   }
 }
 
-// Initialize background script
 const vaultIQBackground = new VaultIQBackground();
 
-// Global error handler
 chrome.runtime.onStartup.addListener(() => {
   console.log('🚀 VaultIQ extension started');
 });

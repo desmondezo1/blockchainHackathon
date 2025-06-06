@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VaultIQ - AI Security Check</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            width: 420px;
+            height: 600px;
+            overflow: hidden;
+        }
+
+        .popup-container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            padding: 20px;
+            border-bottom: 1px solid #333;
+            text-align: center;
+        }
+
+        .logo {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #0066cc, #004499);
+            border-radius: 50%;
+            margin: 0 auto 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #888;
+        }
+
+        .content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .site-info {
+            background: #2a2a2a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .site-icon {
+            width: 64px;
+            height: 64px;
+            background: #444;
+            border-radius: 12px;
+            margin: 0 auto 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .site-url {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+
+        /* AI Security Check Section */
+        .security-check {
+            background: #2a2a2a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .security-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .ai-badge {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .security-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .status-safe {
+            background: #1a3d2e;
+            border: 1px solid #00aa44;
+        }
+
+        .status-warning {
+            background: #3d2a1a;
+            border: 1px solid #ff8800;
+        }
+
+        .status-danger {
+            background: #3d1a1a;
+            border: 1px solid #ff4444;
+        }
+
+        .status-checking {
+            background: #1a2b3d;
+            border: 1px solid #0066cc;
+        }
+
+        .status-icon {
+            font-size: 20px;
+        }
+
+        .status-text {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .ai-analysis {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.4;
+            color: #ccc;
+        }
+
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #0066cc;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #333;
+            border-top: 2px solid #0066cc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .connection-info {
+            background: #1a2b3d;
+            border: 1px solid #0066cc;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .info-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #0066cc;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            font-family: monospace;
+            color: white;
+        }
+
+        .permissions {
+            background: #2a2a2a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+
+        .permissions h4 {
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: #ccc;
+        }
+
+        .permissions ul {
+            margin: 0;
+            padding-left: 16px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .actions {
+            padding: 20px;
+            border-top: 1px solid #333;
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-reject {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+        }
+
+        .btn-reject:hover {
+            background: #444;
+        }
+
+        .btn-approve {
+            background: #0066cc;
+            color: white;
+        }
+
+        .btn-approve:hover {
+            background: #0052a3;
+        }
+
+        .btn-approve.danger {
+            background: #ff4444;
+        }
+
+        .btn-approve.danger:hover {
+            background: #cc3333;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .risk-indicators {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .risk-tag {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .risk-high { background: #ff4444; color: white; }
+        .risk-medium { background: #ff8800; color: white; }
+        .risk-low { background: #00aa44; color: white; }
+    </style>
+</head>
+<body>
+    <div class="popup-container">
+        <div class="header">
+            <div class="logo">🧠</div>
+            <div class="title">AI Security Check</div>
+            <div class="subtitle">Analyzing connection request</div>
+        </div>
+
+        <div class="content">
+            <div class="site-info">
+                <div class="site-icon" id="siteIcon">🌐</div>
+                <div class="site-url" id="siteUrl">Loading...</div>
+            </div>
+
+            <div class="security-check">
+                <div class="security-header">
+                    <span style="font-weight: 600; font-size: 14px;">Security Analysis</span>
+                    <div class="ai-badge">AI Powered</div>
+                </div>
+                
+                <div class="security-status status-checking" id="securityStatus">
+                    <div class="loading-indicator">
+                        <div class="spinner"></div>
+                        <span>VaultIQ AI is analyzing this site...</span>
+                    </div>
+                </div>
+
+                <div class="ai-analysis" id="aiAnalysis" style="display: none;">
+                    Analysis results will appear here...
+                </div>
+
+                <div class="risk-indicators" id="riskIndicators" style="display: none;">
+                    <!-- Risk tags will be added dynamically -->
+                </div>
+            </div>
+
+            <div class="connection-info">
+                <div class="info-title">Connection Details</div>
+                <div class="info-item">
+                    <span class="info-label">Account:</span>
+                    <span class="info-value" id="accountAddress">Loading...</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Network:</span>
+                    <span class="info-value" id="networkName">Loading...</span>
+                </div>
+            </div>
+
+            <div class="permissions">
+                <h4>This site will be able to:</h4>
+                <ul>
+                    <li>View your account address and balance</li>
+                    <li>Request approval for transactions</li>
+                    <li>Suggest transactions to approve</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-reject" id="rejectBtn">Reject</button>
+            <button class="btn btn-approve" id="approveBtn" disabled>Analyzing...</button>
+        </div>
+    </div>
+
+    <script>
+        let connectionData = {};
+        let securityResult = null;
+
+        async function loadConnectionData() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const origin = urlParams.get('origin');
+                const tabId = urlParams.get('tabId');
+
+                if (origin) {
+                    connectionData = { origin, tabId };
+                    updateUI();
+                    await performSecurityCheck();
+                } else {
+                    const result = await chrome.storage.local.get(['pendingConnection']);
+                    if (result.pendingConnection) {
+                        connectionData = result.pendingConnection;
+                        updateUI();
+                        await performSecurityCheck();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading connection data:', error);
+            }
+        }
+
+        async function updateUI() {
+            try {
+                const siteUrl = connectionData.origin || 'Unknown site';
+                document.getElementById('siteUrl').textContent = siteUrl;
+
+                // Get site favicon
+                try {
+                    const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(siteUrl)}&sz=64`;
+                    document.getElementById('siteIcon').innerHTML = `<img src="${favicon}" width="32" height="32" style="border-radius: 6px;" onerror="this.style.display='none'; this.parentNode.innerHTML='🌐';">`;
+                } catch (e) {
+                    document.getElementById('siteIcon').textContent = '🌐';
+                }
+
+                // Get wallet info
+                const storage = await chrome.storage.local.get(['wallet_address', 'selected_network']);
+                const address = storage.wallet_address || 'Not available';
+                const network = storage.selected_network || 'ethereum';
+
+                document.getElementById('accountAddress').textContent = 
+                    `${address.slice(0, 6)}...${address.slice(-4)}`;
+
+                const networkNames = {
+                    'ethereum': 'Ethereum Mainnet',
+                    'sepolia': 'Sepolia Testnet',
+                    'polygon': 'Polygon',
+                    'arbitrum': 'Arbitrum',
+                    'optimism': 'Optimism'
+                };
+                document.getElementById('networkName').textContent = 
+                    networkNames[network] || network;
+
+            } catch (error) {
+                console.error('Error updating UI:', error);
+            }
+        }
+
+        async function performSecurityCheck() {
+            const domain = connectionData.origin;
+            
+            try {
+                // First try to get pre-computed security result from background script
+                const storage = await chrome.storage.local.get([`security_${domain}`]);
+                const preComputedResult = storage[`security_${domain}`];
+                
+                if (preComputedResult) {
+                    console.log('Using pre-computed security result');
+                    securityResult = preComputedResult;
+                    updateSecurityStatus(preComputedResult);
+                    return;
+                }
+
+                // If no pre-computed result, request fresh analysis from background
+                console.log('Requesting fresh security analysis...');
+                
+                const response = await chrome.runtime.sendMessage({
+                    type: 'REQUEST_SECURITY_CHECK',
+                    domain: domain
+                });
+
+                if (response && response.success) {
+                    securityResult = response.result;
+                    updateSecurityStatus(response.result);
+                } else {
+                    throw new Error(response?.error || 'Security check failed');
+                }
+                
+            } catch (error) {
+                console.error('Security check failed:', error);
+                // Fallback to safe default
+                securityResult = {
+                    status: 'unknown',
+                    riskLevel: 'medium',
+                    message: 'Unable to verify site security due to connection error. Please verify this site manually before connecting.',
+                    risks: ['verification_failed'],
+                    apiError: true
+                };
+                updateSecurityStatus(securityResult);
+            }
+        }
+
+        function updateSecurityStatus(result) {
+            const statusEl = document.getElementById('securityStatus');
+            const analysisEl = document.getElementById('aiAnalysis');
+            const indicatorsEl = document.getElementById('riskIndicators');
+            const approveBtn = document.getElementById('approveBtn');
+
+            // Update status based on AI response
+            statusEl.className = 'security-status';
+            
+            if (result.status === 'safe') {
+                statusEl.classList.add('status-safe');
+                statusEl.innerHTML = `
+                    <span class="status-icon">✅</span>
+                    <span class="status-text">Site appears safe</span>
+                `;
+                approveBtn.textContent = 'Connect';
+                approveBtn.disabled = false;
+                approveBtn.classList.remove('danger');
+            } else if (result.status === 'warning') {
+                statusEl.classList.add('status-warning');
+                statusEl.innerHTML = `
+                    <span class="status-icon">⚠️</span>
+                    <span class="status-text">Proceed with caution</span>
+                `;
+                approveBtn.textContent = 'Connect Anyway';
+                approveBtn.disabled = false;
+                approveBtn.classList.remove('danger');
+            } else if (result.status === 'danger') {
+                statusEl.classList.add('status-danger');
+                statusEl.innerHTML = `
+                    <span class="status-icon">🚨</span>
+                    <span class="status-text">High risk detected</span>
+                `;
+                approveBtn.textContent = 'Connect (Not Recommended)';
+                approveBtn.disabled = false;
+                approveBtn.classList.add('danger');
+            } else {
+                statusEl.classList.add('status-warning');
+                statusEl.innerHTML = `
+                    <span class="status-icon">❓</span>
+                    <span class="status-text">Unable to verify safety</span>
+                `;
+                approveBtn.textContent = 'Connect (Unverified)';
+                approveBtn.disabled = false;
+            }
+
+            // Show AI analysis
+            analysisEl.style.display = 'block';
+            analysisEl.textContent = result.message || 'No additional analysis available.';
+
+            // Show risk indicators
+            if (result.risks && result.risks.length > 0) {
+                indicatorsEl.style.display = 'flex';
+                indicatorsEl.innerHTML = '';
+                
+                result.risks.forEach(risk => {
+                    const tag = document.createElement('div');
+                    tag.className = `risk-tag risk-${result.riskLevel || 'medium'}`;
+                    tag.textContent = risk.replace('_', ' ');
+                    indicatorsEl.appendChild(tag);
+                });
+            }
+        }
+
+        // Handle approval
+        document.getElementById('approveBtn').addEventListener('click', async () => {
+            try {
+                await chrome.runtime.sendMessage({
+                    type: 'CONNECTION_APPROVAL_RESPONSE',
+                    approved: true,
+                    origin: connectionData.origin,
+                    tabId: connectionData.tabId,
+                    securityResult: securityResult
+                });
+                window.close();
+            } catch (error) {
+                console.error('Error approving connection:', error);
+            }
+        });
+
+        // Handle rejection
+        document.getElementById('rejectBtn').addEventListener('click', async () => {
+            try {
+                await chrome.runtime.sendMessage({
+                    type: 'CONNECTION_APPROVAL_RESPONSE',
+                    approved: false,
+                    origin: connectionData.origin,
+                    tabId: connectionData.tabId,
+                    securityResult: securityResult
+                });
+                window.close();
+            } catch (error) {
+                console.error('Error rejecting connection:', error);
+            }
+        });
+
+        // Close on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('rejectBtn').click();
+            }
+        });
+
+        // Initialize
+        loadConnectionData();
+    </script>
+</body>
+</html>
